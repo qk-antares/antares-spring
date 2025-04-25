@@ -1,4 +1,4 @@
-package com.antares.spring.context;
+package com.antares.spring.io;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

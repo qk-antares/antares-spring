@@ -1,4 +1,4 @@
-package com.antares.spring.context;
+package com.antares.spring.io;
 
 /*
  * Resource类型表示文件

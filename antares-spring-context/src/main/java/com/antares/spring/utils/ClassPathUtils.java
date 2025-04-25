@@ -6,7 +6,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
-import com.antares.spring.context.InputStreamCallback;
+import com.antares.spring.io.InputStreamCallback;
 
 
 public class ClassPathUtils {

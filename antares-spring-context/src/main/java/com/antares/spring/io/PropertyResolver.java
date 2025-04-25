@@ -1,4 +1,4 @@
-package com.antares.spring.context;
+package com.antares.spring.io;
 
 import java.time.Duration;
 import java.time.LocalDate;
