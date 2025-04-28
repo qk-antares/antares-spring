@@ -105,11 +105,118 @@ Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数
 
 给出一个包名，例如`org.example`，要扫描该包下的所有Class，实际上是在`classpath`中搜索所有文件，找出文件名匹配的`.class`文件。
 
-> classpath: 在 Java 中，classpath 是一个用于指定类加载器如何查找和加载类和资源的位置的路径集合。简单来说，classpath 是 Java 程序在运行时用来查找 .class 文件和其他资源（如配置文件、图片等）的一个路径列表。
+> classpath 是一个用于指定类加载器如何查找和加载类和资源的位置的路径集合。简单来说，classpath 是 Java 程序在运行时用来查找 .class 文件和其他资源（如配置文件、图片等）的一个路径列表。
 
-classpath 告诉 Java 虚拟机（JVM）以及其他 Java 工具（如编译器和调试器）在哪里查找 Java 类和资源文件。它可以包含目录、JAR 文件（Java ARchive）或其他归档文件。
+##### 1.2.1 Resource
 
-定义
+首先定义`Resource`类型标识classpath下的资源：
+```java
+public record Resource(String path, String name){
+}
+```
+
+> `record`是Java14引入的一种新特性，提供了一种简洁的方式来定义**数据承载类**，简化定义包含多个字段的数据类，并自动生成常用方法，包括构造函数、`toString()`、`equals()`、`hashCode()`和字段访问器。
+> 
+> `record`类还有一些其他的特性：首先，`record`类型的对象默认是不可变的，也就是所有字段是`final`的；其次，`record`类不能继承其他类，因为它默认继承自`java.lang.Record`
+
+##### 1.2.2 `scan()`方法
+
+`ResourceResolver`中的`scan`方法用来获取扫描到的`Resource`：
+```java
+public class ResourceResolver {
+    String basePackage;
+
+    public ResourceResolver(String basePackage) {
+        this.basePackage = basePackage;
+    }
+
+    public <R> List<R> scan(Function<Resource, R> mapper) {
+        ...
+    }
+}
+```
+
+> 泛型是JDK5引入的新特性，编译器可以对泛型参数进行检测，从而提升代码的可读性以及稳定性。泛型的使用方式包括3种：
+>
+> 1.泛型类
+>
+> ```java
+> public class Generic<T> {
+>     private T key;
+> }
+> ```
+>
+> 2.泛型接口
+>
+> ```java
+> public interface Generator<T> {
+> 	public T method();
+> }
+> ```
+>
+> 在实现泛型接口时，可以指定或不指定类型
+>
+> ```java
+> public class GeneratorImpl<T> implements Generator<T> {
+> 	@Override
+>     public T method() {
+>         return null;
+>     }
+> }
+> 
+> public class GeneratorImpl<String> implements Generator<String> {
+>     @Override
+>     public String method() {
+>         return "hello";
+>     }
+> }
+> ```
+>
+> 3.泛型方法
+>
+> ```java
+> public <E> void printArray(E[] inputArray) {
+> 	for(E e : inputArray) {
+>         sout(e);
+>     }
+> }
+> ```
+>
+> 方法签名中的\<E\>代表一个占位符，它可以代表参数或返回值的类型，具体类型将在调用方法
+
+
+
+> `Function<T, R>`是Java8引入的一个**函数式接口**，它代表一个接受一个输入参数T，返回一个结果R的函数。
+>
+> 函数式接口就是只包含一个（抽象）方法的接口，Java8引入了`@FunctionalInterface`注解来明确告诉编译器“这是一个函数式接口”
+>
+> ```java
+> @FunctionalInterface
+> public interface Comparator<T> {
+>     int compare(T o1, T o2);
+> }
+> ```
+>
+> ❓为什么需要函数式接口
+>
+> 在Java8之前，写回调、策略、传递行为只能定义匿名内部类，代码非常冗长复杂：
+>
+> ```java
+> button.addActionListener(new ActionListener() {
+>     @Override
+>     public void actionPerformed(ActionEvent e) {
+>         System.out.println("Button clicked!");
+>     }
+> });
+> ```
+>
+> 所谓匿名内部类，就是**没有名字的内部类**，**在定义的同时创建对象**，**一般用于临时实现接口或继承类**，只用一次（上面的`new ActionListener()`）。
+>
+> 而有了函数式接口后，就可以结合**Lambda表达式**使用，写成：
+>
+> ```java
+> button.addActionListener(e -> System.out.println("Button clicked!"));
+> ```
 
 
 -----

@@ -37,9 +37,12 @@ public class AnnotationConfigApplicationContext {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
-    Map<String, BeanDefinition> beans;
+    protected final Map<String, BeanDefinition> beans;
+    protected final PropertyResolver propertyResolver;
 
     public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
+        this.propertyResolver = propertyResolver;
+        
         // 扫描获取所有Bean的Class类型
         Set<String> beanClassNames = scanForClassNames(configClass);
         // 创建BeanDefinition
