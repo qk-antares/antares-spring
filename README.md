@@ -105,7 +105,7 @@ Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数
 
 给出一个包名，例如`org.example`，要扫描该包下的所有Class，实际上是在`classpath`中搜索所有文件，找出文件名匹配的`.class`文件。
 
-> classpath 是一个用于指定类加载器如何查找和加载类和资源的位置的路径集合。简单来说，classpath 是 Java 程序在运行时用来查找 .class 文件和其他资源（如配置文件、图片等）的一个路径列表。
+> `classpath`是一个用于指定类加载器如何查找和加载类和资源的位置的路径集合。简单来说，`classpath`是 Java 程序在运行时用来查找`.class`文件和其他资源（如配置文件、图片等）的一个路径列表。
 
 ##### 1.2.1 Resource
 
@@ -218,9 +218,239 @@ public class ResourceResolver {
 > button.addActionListener(e -> System.out.println("Button clicked!"));
 > ```
 
+`scan`方法接受一个函数式接口`Function<Resource, R>`，即`scan`方法只定义发现资源文件`Resource`的逻辑，具体每个资源文件怎么处理，返回什么交给用户自定义，例如，下面的逻辑可以将**资源文件**映射为ClassName（类的全路径）：
+
+```java
+ResourceResolver rr = new ResourceResolver("org.example");
+List<String> classList = rr.scan(res -> {
+    String name = res.name(); // 资源名称"org/example/Hello.class"
+    if (name.endsWith(".class")) { // 如果以.class结尾
+        // 把"org/example/Hello.class"变为"org.example.Hello":
+        return name.substring(0, name.length() - 6).replace(File.separator, ".");
+    }
+    // 否则返回null表示不是有效的ClassName:
+    return null;
+});
+```
+
+在`classpath`中扫描`Resource`时有几个注意点：
+
+1. **不仅要搜索文件，还要支持搜索jar包**
+
+    ```java
+    // 通过ClassLoader获取URL列表:
+    Enumeration<URL> en = getContextClassLoader().getResources(basePackagePath);
+    while (en.hasMoreElements()) {
+        URL url = en.nextElement();
+        URI uri = url.toURI();
+        String uriStr = removeLeadingSlash(uriToString(uri));
+        String uriBaseStr = uriStr.substring(0, uriStr.length() - basePackagePath.length());
+        if (uriBaseStr.startsWith("file:")) {
+            uriBaseStr = uriBaseStr.substring(5);
+        }
+        if (uriBaseStr.startsWith("jar:")) {
+            scanFile(true, uriBaseStr, jarUriToPath(basePackagePath, uri), collector, mapper);
+        } else {
+            scanFile(false, uriBaseStr, Paths.get(uri), collector, mapper);
+        }
+    }
+    ```
+
+2. `ClassLoader`首先从`Thread.getContextClassLoader()`获取，如果获取不到，再从当前Class获取，因为**Web应用的ClassLoader不是JVM提供的基于Classpath的ClassLoader，而是Servlet容器提供的ClassLoader**，它不在默认的Classpath搜索，而是在`/WEB-INF/classes`目录和`/WEB-INF/lib`的所有jar包搜索，从`Thread.getContextClassLoader()`可以获取到Servlet容器专属的ClassLoader；
+
+3. `URL`转为`URI`是必要的，转成 `URI` 后可以更方便、安全地与 `java.nio.file.Path`、`File` 等类型交互，`scanFile`中的`jarUriToPath`和`Paths.get`方法都会用到`URI`
 
 -----
 
+#### 1.3 PropertyResolver
+
+Spring的注入分为`@Autowired`和`@Value`两种方式，前者是注入Bean，后者是注入属性值。我们实现的`PropertyResolver`用来实现保存配置项，以及对外提供查询功能，具体来说，它支持3种查询方式：
+1. 按配置的`key`查询，如：`getProperty("jdbc.url")`
+2. 以`${jdbc.url}`的方式查询，如：`getProperty("${jdbc.url}")`，后续可用于`@Value("${jdbc.url}")`注入
+3. 带默认值的，例如`getProperty("${app.title:Spring}")`，用于`@Value("${app.title:Spring}")`注入
+
+##### 1.3.1 构造函数
+
+Java本身提供了`key-value`查询的`Properties`，因此在PropertyResolver中直接使用`Properties`作为构造函数的参数：
+
+```java
+public class PropertyResolver {
+
+    Map<String, String> properties = new HashMap<>();
+
+    public PropertyResolver(Properties props) {
+        // 存入环境变量:
+        this.properties.putAll(System.getenv());
+        // 存入Properties:
+        Set<String> names = props.stringPropertyNames();
+        for (String name : names) {
+            this.properties.put(name, props.getProperty(name));
+        }
+    }
+}
+```
+
+##### 1.3.2 `getter`
+
+`PropertyResolver`通过其成员属性`Map<String, String> properties`来保存配置项，查询功能可以通过`Map`的`get`方法实现(`@Nullable`用于标记返回值可以是`null`)：
+
+```java
+@Nullable
+public String getProperty(String key) {
+    return this.properties.get(key);
+}
+```
+
+##### 1.3.3 `${abc.xyz:default}`查询
+
+对于`${abc.xyz:default}`的查询，首先定义`PropertyExpr`保存解析后的`key`和`defaultValue`:
+
+```java
+record PropertyExpr(String key, String defaultValue) {}
+```
+
+然后对`${...}`进行解析：
+
+```java
+PropertyExpr parsePropertyExpr(String expr) {
+    if (expr.startsWith("${") && expr.endsWith("}")) {
+        // 是否存在defaultValue
+        int idx = expr.indexOf(":");
+        if (idx == -1) {
+            // 没有defaultValue(${key})
+            String key = expr.substring(2, expr.length() - 1);
+            return new PropertyExpr(key, null);
+        } else {
+            // 有defaultValue(${key:defaultValue})
+            String key = expr.substring(2, idx);
+            String defaultValue = expr.substring(idx + 1, expr.length() - 1);
+            return new PropertyExpr(key, defaultValue);
+        }
+    }
+    return null;
+}
+```
+
+接下来把`getProperty()`改造下，即可支持`${...}`的查询：
+
+```java
+@Nullable
+public String getProperty(String key) {
+    // 解析${abc.xyz:defaultValue}:
+    PropertyExpr keyExpr = parsePropertyExpr(key);
+    if (keyExpr != null) {
+        if (keyExpr.defaultValue() != null) {
+            // 带默认值查询(需要看this.properties中是否存在了key):
+            return getProperty(keyExpr.key(), keyExpr.defaultValue());
+        } else {
+            // 不带默认值查询(要求this.properties中必须存在key):
+            return getRequiredProperty(keyExpr.key());
+        }
+    }
+    // 普通key查询:
+    String value = this.properties.get(key);
+    if (value != null) {
+        return parseValue(value);
+    }
+    return value;
+}
+```
+
+##### 1.3.4 支持嵌套
+
+为了支持嵌套的查询，形如：`${app.title:${APP_NAME:Spring}}`，可以递归的调用`parseValue`，这样的话我们实际上优先查找`app.title`，如果没有找到，再查找`APP_NAME`，如果都没有找到，则返回默认值`Spring`：
+
+```java
+//parseValue中又调用了getProperty，本质是递归
+String parseValue(String value) {
+    PropertyExpr valueExpr = parsePropertyExpr(value);
+    if (valueExpr == null) {
+        return value;
+    }
+    if (valueExpr.defaultValue() != null) {
+        return getProperty(valueExpr.key(), valueExpr.defaultValue());
+    } else {
+        return getRequiredProperty(valueExpr.key());
+    }
+}
+```
+
+我们的实现不支持组合表达式（形如：`jdbc.url=jdbc:mysql//${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME}`）以及计算表达式（形如：`#{appBean.version() + 1}`）
+
+##### 1.3.5 类型转换
+
+`@Value`在注入时支持`boolean`、`int`、`Long`等基本类型与包装类型，Spring还支持`Date`、`Duration`等类型的注入。要实现类型转换，又不能写死。
+
+先定义带类型转换的查询入口：
+
+```java
+@Nullable
+public <T> T getProperty(String key, Class<T> clazz) {
+    String value = getProperty(key);
+    // 转换为指定类型
+    return value == null ? null : convert(clazz, value);
+}
+```
+
+再来实现`convert`方法，该方法的本质是将String类型转换为指定类型，使用函数式接口`Function<String, Object>`来表示这种转换：
+
+```java
+public class PropertyResolver {
+    // 存储Class -> Function:
+    Map<Class<?>, Function<String, Object>> converters = new HashMap<>();
+
+    // 转换到指定Class类型:
+    <T> T convert(Class<?> clazz, String value) {
+        Function<String, Object> fn = this.converters.get(clazz);
+        if (fn == null) {
+            throw new IllegalArgumentException("Unsupported value type: " + clazz.getName());
+        }
+        return (T) fn.apply(value);
+    }
+}
+```
+
+下一步是在`PropertyResolver`构造时，将各种转换器注册到`converters`中：
+
+```java
+public PropertyResolver(Properties props) {
+    ...
+    // String类型:
+    converters.put(String.class, s -> s);
+    // boolean类型:
+    converters.put(boolean.class, s -> Boolean.parseBoolean(s));
+    converters.put(Boolean.class, s -> Boolean.valueOf(s));
+    // int类型:
+    converters.put(int.class, s -> Integer.parseInt(s));
+    converters.put(Integer.class, s -> Integer.valueOf(s));
+    // 其他基本类型...
+    // Date/Time类型:
+    converters.put(LocalDate.class, s -> LocalDate.parse(s));
+    converters.put(LocalTime.class, s -> LocalTime.parse(s));
+    converters.put(LocalDateTime.class, s -> LocalDateTime.parse(s));
+    converters.put(ZonedDateTime.class, s -> ZonedDateTime.parse(s));
+    converters.put(Duration.class, s -> Duration.parse(s));
+    converters.put(ZoneId.class, s -> ZoneId.of(s));
+}
+```
+
+我们还可以对外暴漏一个`registerConverter`方法，允许用户添加自定义的转换器。
+
+到这里，`PropertyResolver`就基本完成了对配置项的解析、查询、转换等功能，其使用过程如下：
+
+```java
+// Java标准库读取properties文件:
+Properties props = new Properties();
+props.load(fileInput); // 文件输入流
+// 构造PropertyResolver:
+PropertyResolver pr = new PropertyResolver(props);
+// 后续代码调用...
+// pr.getProperty("${app.version:1}", int.class)
+```
+
+上述从文件中读取`properties`的过程还可以通过读取`yaml`文件来实现，具体见`YamlUtils`
+
+---
 
 可以用注解来修饰注解的定义吗？
 例如：

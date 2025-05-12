@@ -134,6 +134,12 @@ public class PropertyResolver {
         return convert(targetType, value);
     }
 
+    /**
+     * parseValue中又调用了getProperty，本质是递归
+     * 
+     * @param value
+     * @return
+     */
     String parseValue(String value) {
         PropertyExpr valueExpr = parsePropertyExpr(value);
         if (valueExpr == null) {
@@ -148,7 +154,7 @@ public class PropertyResolver {
 
     public String getRequiredProperty(String key) {
         String value = getProperty(key);
-        // TODO: 我觉得这里很让人疑惑，要么就不能返回null，要么就与@Nullable一致
+        // TODO 我觉得这里很让人疑惑，要么就不能返回null，要么就与@Nullable一致
         return Objects.requireNonNull(value, "Property '" + key + "' not found.");
     }
 

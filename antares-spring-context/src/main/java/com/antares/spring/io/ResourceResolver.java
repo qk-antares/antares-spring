@@ -62,12 +62,14 @@ public class ResourceResolver {
         while (en.hasMoreElements()) {
             URL url = en.nextElement();
             URI uri = url.toURI();
+            //TODO 删除前导的文件分隔符是否是必要的？因为uriToString后前导的应该是file:或jar:
             String uriStr = removeLeadingSlash(uriToString(uri));
+            //去掉包名
             String uriBaseStr = uriStr.substring(0, uriStr.length() - basePackagePath.length());
             if (uriBaseStr.startsWith("file:")) {
                 uriBaseStr = uriBaseStr.substring(5);
             }
-            if (uriStr.startsWith("jar:")) {
+            if (uriBaseStr.startsWith("jar:")) {
                 scanFile(true, uriBaseStr, jarUriToPath(basePackagePath, uri), collector, mapper);
             } else {
                 scanFile(false, uriBaseStr, Paths.get(uri), collector, mapper);
@@ -102,7 +104,7 @@ public class ResourceResolver {
         ClassLoader cl = null;
         cl = Thread.currentThread().getContextClassLoader();
         if (cl == null) {
-            cl = getClass().getClassLoader();
+            cl = this.getClass().getClassLoader();
         }
         return cl;
     }
