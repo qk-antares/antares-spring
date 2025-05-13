@@ -76,7 +76,7 @@ public class AnnotationConfigApplicationContext {
         return this.beans.values().stream()
                 // 过滤类型
                 .filter(bean -> type.isAssignableFrom(bean.getBeanClass()))
-                // 排序
+                // 排序，根据Order，Order相同比较name的字典序，BeanDefinition需要实现Comparable接口
                 .sorted().collect(Collectors.toList());
     }
 
