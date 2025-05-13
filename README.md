@@ -99,6 +99,8 @@ public class DbConfig {
 
 Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数都采用`Singleton`，因此本项目只支持`Singleton`
 
+
+
 #### 1.2 ResourceResolver
 
 `@ComponentScan`可以**在指定包下扫描所有class**，我们实现的`ResourceResolver`就是来做这件事的。
@@ -452,114 +454,442 @@ PropertyResolver pr = new PropertyResolver(props);
 
 ---
 
-可以用注解来修饰注解的定义吗？
-例如：
-@A
-public @interfact B{}
+#### 1.4 BeanDefinition
 
-此时@A起到一个什么作用？
+##### 1.4.1 为什么需要BeanDefinition
 
-这个问题问得很深入！✅ **是的，Java 是允许用注解来修饰另一个注解的定义的**。
-
-你举的例子本质上就是在定义一个“**元注解**”（meta-annotation）行为 —— 即：**注解的注解**。
-
----
-
-## ✅ 示例结构说明：
+接下来我们要开始正式实现管理Bean的IoC容器了。在IoC容器中，每个Bean都有唯一的`name`标识，Spring还允许一个Bean有多个`name`，这里我们简化成一个Bean只有一个`name`。很容易想到直接用`Map<String, Object>`来保存所有Bean：
+```java
+public class AnnotationConfigApplicationContext {
+    Map<String, Object> beans;
+}
+```
+但这么做的问题是丢失了Bean的定义信息，不便于我们创建Bean以及解析Bean的依赖关系。我们需要定义一个`BeanDefinition`类，它能够从`Annotation`中提取到足够的信息，便于后续创建Bean、设置依赖、调用初始化方法等：
 
 ```java
-@A
-public @interface B {
+public class BeanDefinition {
+    // 全局唯一的Bean Name:
+    String name;
+
+    // Bean的声明类型:
+    Class<?> beanClass;
+
+    // Bean的实例:
+    Object instance = null;
+
+    // 构造方法/null:
+    Constructor<?> constructor;
+
+    // 工厂方法名称/null:
+    String factoryName;
+
+    // 工厂方法/null:
+    Method factoryMethod;
+
+    // Bean的顺序:
+    int order;
+
+    // 是否标识@Primary:
+    boolean primary;
+
+    // init/destroy方法名称:
+    String initMethodName;
+    String destroyMethodName;
+
+    // init/destroy方法:
+    Method initMethod;
+    Method destroyMethod;
 }
 ```
 
-这里：
+##### 1.4.2 BeanDefinition的工作流程
 
-- `@A` 是用来修饰另一个注解 `@B` 的注解
-- `@B` 是一个自定义注解
-- `@A` 在这里 **并不会直接作用于方法/类等业务代码**，而是作用于注解本身（即对 `@B` 起作用）
-
----
-
-## 💡 那么 `@A` 到底起什么作用？
-
-这取决于 `@A` 的功能。
-
----
-
-### ✅ 场景一：标准元注解（你可能已经在用）
-
-Java 内置了一些常用的注解就是专门**修饰其他注解**的，它们就是所谓的**“元注解”**：
-
-| 注解         | 用途 |
-|--------------|------|
-| `@Retention` | 控制注解保留到哪一级别（源码 / class / 运行时） |
-| `@Target`    | 控制注解能作用在哪些结构上（类、方法、字段等） |
-| `@Documented`| 控制是否包含在 JavaDoc 中 |
-| `@Inherited` | 控制子类是否继承注解 |
-
-例如：
+对于带`@Component`的类，我们需要获取Class类型、构造方法，以及带有`@PostConstruct`和`@PreDestroy`注解的初始化与销毁方法，以及一些其他信息，例如`@Order`中定义的Bean的顺序（可用于AOP中切面的执行顺序）、`@Primary`标识等（多个相同类型时返回哪个Bean）。一个典型的定义如下：
 
 ```java
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface B {
+@Component
+public class Hello {
+    @PostConstruct
+    void init() {}
+
+    @PreDestroy
+    void destroy() {}
 }
 ```
 
-这里 `@Retention` 和 `@Target` 就是修饰注解 `@B` 的行为的——它们就是 **元注解**（meta-annotations）。
-
----
-
-### ✅ 场景二：自定义注解作为元注解（你提到的情况）
-
-Java 并不限制 **只有元注解才能修饰注解**，你完全可以自定义一个注解 `@A`，然后用于修饰另一个注解 `@B`：
+对于带`@Configuration`的工厂类，它定义了一些带`@Bean`的工厂方法，我们需要获取工厂方法的返回值作为Class类型，方法本身作为Bean的`factoryMethod`，还需要收集`@Bean`中定义的`initMethod`和`destroyMethod`方法用于初始化与销毁，以及`@Order`、`@Primary`等信息。一个典型的定义如下：
 
 ```java
-// 定义注解 A
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.ANNOTATION_TYPE) // 注意这里！
-public @interface A {
-    String role() default "meta";
-}
-
-// 注解 B 被注解 A 修饰
-@A(role = "custom behavior")
-public @interface B {
+@Configuration
+public class AppConfig {
+    @Bean(initMethod="init", destroyMethod="close")
+    DataSource createDataSource() {
+        return new HikariDataSource(...);
+    }
 }
 ```
 
-### 🚨 注意关键点：
-要让一个注解能修饰“其他注解”，它的 `@Target` 必须包含 `ElementType.ANNOTATION_TYPE`。
+##### 1.4.3 按name获取Bean
 
----
+通过查询`Map<String, BeanDefinition>`即可完成：
 
-### ✅ 应用场景：框架/工具对注解做“注解驱动”处理
+```java
+public class AnnotationConfigApplicationContext {
+    Map<String, BeanDefinition> beans;
 
-框架设计中，这种模式叫做 **“注解驱动注解”** 或 **“组合注解”**。Spring Boot 就大量用到：
+    // 根据Name查找BeanDefinition，如果Name不存在，返回null
+    @Nullable
+    public BeanDefinition findBeanDefinition(String name) {
+        return this.beans.get(name);
+    }
+}
+```
+
+##### 1.4.4 按class获取Bean
+
+对于`@Component`定义的Bean，它的声明类型就是其实际类型；对于`@Bean`工厂方法定义的Bean，它的声明类型和实际类型不一定相同（例如上述`createDataSource()`定义的Bean，声明类型是`DataSource`，但实际类型却是`HikariDataSource`）。
+
+在`BeanDefinition`中，`Class<?> beanClass`保存的是**声明类型**，而实际类型可以通过通过`instance.getClass()`来获取。
+
+```java
+public class BeanDefinition {
+    // Bean的声明类型:
+    Class<?> beanClass;
+
+    // Bean的实例:
+    Object instance = null;
+}
+```
+
+对于按`class`获取Bean的`getBean(Class)`方法，我们需要遍历找出所有符合类型的Bean，如果不唯一，再判断`@Primary`，才能返回唯一Bean或报错：
+
+```java
+// 根据Type查找若干个BeanDefinition，返回0个或多个:
+List<BeanDefinition> findBeanDefinitions(Class<?> type) {
+    return this.beans.values().stream()
+            // 过滤类型
+            .filter(bean -> type.isAssignableFrom(bean.getBeanClass()))
+            // 排序
+            .sorted().collect(Collectors.toList());
+}
+
+// 根据Type查找某个BeanDefinition，如果不存在返回null，如果存在多个返回@Primary标注的一个:
+@Nullable
+public BeanDefinition findBeanDefinition(Class<?> type) {
+    List<BeanDefinition> defs = findBeanDefinitions(type);
+    if (defs.isEmpty()) { // 没有找到任何BeanDefinition
+        return null;
+    }
+    if (defs.size() == 1) { // 找到唯一一个
+        return defs.get(0);
+    }
+    // 多于一个时，查找@Primary:
+    List<BeanDefinition> primaryDefs = defs.stream().filter(def -> def.isPrimary()).collect(Collectors.toList());
+    if (primaryDefs.size() == 1) { // @Primary唯一
+        return primaryDefs.get(0);
+    }
+    if (primaryDefs.isEmpty()) { // 不存在@Primary
+        throw new NoUniqueBeanDefinitionException(String.format("Multiple bean with type '%s' found, but no @Primary specified.", type.getName()));
+    } else { // @Primary不唯一
+        throw new NoUniqueBeanDefinitionException(String.format("Multiple bean with type '%s' found, and multiple @Primary specified.", type.getName()));
+    }
+}
+```
+
+##### 1.4.5 获取所有的`BeanDefinition`
+
+这个过程分为两步，第一步扫描所有Bean的`ClassName`，第二步是创建`BeanDefinitio`：
+
+```java
+public class AnnotationConfigApplicationContext {
+    Map<String, BeanDefinition> beans;
+
+    public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
+        // 扫描获取所有Bean的Class类型:
+        Set<String> beanClassNames = scanForClassNames(configClass);
+
+        // 创建Bean的定义:
+        this.beans = createBeanDefinitions(beanClassNames);
+    }
+}
+```
+
+构造函数中的`Class<?> configClass`是入口类，相当于SpringBoot项目中的`xxxApplication`类。
+
+###### 扫描`ClassName`
+
+这个过程也可以细分为两个部分，第一部分是获取`@ComponentScan`注解配置的`package`，并利用`ResourceResolver`扫描该包下的所有`ClassName`；第二部分是查找`@Import`注解配置的类，这些类不位于`@ComponentScan`配置的包下，但依然需要注入IoC容器：
+
+```java
+/*
+ * 扫描指定包下的所有Class，然后返回Class名字
+ * 以及查找@Import注解修饰的类，这些类不位于@ComponentScan配置的包下，但依然可以注入IoC容器
+ */
+Set<String> scanForClassNames(Class<?> configClass) {
+    // 获取@ComponentScan注解
+    ComponentScan scan = ClassUtils.findAnnotation(configClass, ComponentScan.class);
+    // 获取注解配置的package名字，未配置则默认当前类所在包
+    String[] scanPackages = (scan == null || scan.value().length == 0)
+            ? new String[] { configClass.getPackage().getName() }
+            : scan.value();
+
+    Set<String> classNameSet = new HashSet<>();
+    for (String pkg : scanPackages) {
+        // 扫描包下的所有Class
+        var rr = new ResourceResolver(pkg);
+        List<String> classList = rr.scan(res -> {
+            String name = res.name();
+            if (name.endsWith(".class")) {
+                return name.substring(0, name.length() - 6).replace(File.separator, ".");
+            }
+            return null;
+        });
+        classNameSet.addAll(classList);
+    }
+
+    // 查找@Import(Xyz.class)
+    Import importConfig = configClass.getAnnotation(Import.class);
+    if (importConfig != null) {
+        for (Class<?> importConfigClass : importConfig.value()) {
+            String importClassName = importConfigClass.getName();
+            classNameSet.add(importClassName);
+        }
+    }
+
+    return classNameSet;
+}
+```
+
+###### 创建`BeanDefinition`
+
+这个过程处理类上/类中方法上的`@Configuration`、`@Component`、`@Bean`、`@Primary`、`@Order`、`@PostConstruct`、`@PreDestroy`等注解及配置，提取出Bean的定义信息，创建`BeanDefinition`对象。
+
+同样可以细分成两个部分，第一部分是创建被`@Component`修饰的类的`BeanDefinition`；第二部分进一步处理`@Configuration`这种工厂类（即其中包含`@Bean`注解的方法）：
+
+```java
+Map<String, BeanDefinition> createBeanDefinitions(Set<String> beanClassNames) {
+    Map<String, BeanDefinition> defs = new HashMap<>();
+    for (String className : beanClassNames) {
+        // 获取class
+        Class<?> clazz = null;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new BeanCreationException(e);
+        }
+        if (clazz.isAnnotation() || clazz.isEnum() || clazz.isInterface() || clazz.isRecord()) {
+            continue;
+        }
+
+        // 是否标注@Component，我们只注入@ComponentScan包下标注了@Component注解的类
+        Component component = ClassUtils.findAnnotation(clazz, Component.class);
+        if (component != null) {
+            logger.atDebug().log("found component: {}", clazz.getName());
+            // 获取类上的访问修饰符
+            int mod = clazz.getModifiers();
+            if (Modifier.isAbstract(mod)) {
+                throw new BeanDefinitionException("@Component class " + clazz.getName() + " must not be abstract.");
+            }
+            if (Modifier.isPrivate(mod)) {
+                throw new BeanDefinitionException("@Component class " + clazz.getName() + " must not be private.");
+            }
+
+            String beanName = ClassUtils.getBeanName(clazz);
+            var def = new BeanDefinition(beanName, clazz, getSuitableConstructor(clazz), getOrder(clazz),
+                    clazz.isAnnotationPresent(Primary.class),
+                    // name of init / destroy method
+                    null, null,
+                    // init method
+                    ClassUtils.findAnnotationMethod(clazz, PostConstruct.class),
+                    // destroy method
+                    ClassUtils.findAnnotationMethod(clazz, PreDestroy.class));
+
+            addBeanDefinition(defs, def);
+            logger.atDebug().log("define bean: {}", def);
+
+            // 带有@Configuration注解的类作为工厂类，其中包含@Bean注解的方法
+            Configuration configuration = ClassUtils.findAnnotation(clazz, Configuration.class);
+            if (configuration != null) {
+                scanFactoryMethods(beanName, clazz, defs);
+            }
+        }
+    }
+    return defs;
+}
+```
+
+需要注意的是，这里判断是否标注`@Component`，不是简单地判断类上是否有`@Component`，`@Component`是广义的，`@Service`、`@Repository`、`@Controller`等都是它的**子注解**：
 
 ```java
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Component
-public @interface Service {
+public @interface Controller {
+    String value() default "";
 }
 ```
 
-上面这个 `@Service` 注解，其实是组合了 `@Component` 注解的行为，因此 Spring 会把带有 `@Service` 的类也当作组件进行自动扫描。
+> **注解的注解**称为**元注解**。
+>
+>  Java内置了一些标准元注解
+>
+> | 注解          | 用途                                            |
+> | ------------- | ----------------------------------------------- |
+> | `@Retention`  | 控制注解保留到哪一级别（源码 / class / 运行时） |
+> | `@Target`     | 控制注解能作用在哪些结构上（类、方法、字段等）  |
+> | `@Documented` | 控制是否包含在 JavaDoc 中                       |
+> | `@Inherited`  | 控制子类是否继承注解                            |
+>
+> 对于自定义元注解，可以使用`@Target(ElementType.ANNOTATION_TYPE)`
+>
+> ```java
+> @Retention(RetentionPolicy.RUNTIME)
+> @Target(ElementType.ANNOTATION_TYPE)
+> public @interface A {
+>     String role() default "meta";
+> }
+> 
+> @A(role = "custom behavior")
+> public @interface B {
+> }
+> ```
+>
+> 使用`@Target(ElementType.TYPE)`也是可以的，它的范围更广，可以同时用于类、接口以及注解，像`@Component`就是用`@Target(ElementType.TYPE)`修饰的一种元注解
 
----
+因此这里查找`@Component`注解实际上是一个递归的过程：
 
-### ✅ 总结：
+```java
+public class ClassUtils {
+    public static <A extends Annotation> A findAnnotation(Class<?> target, Class<A> annoClass) {
+        A a = target.getAnnotation(annoClass);
+        for (Annotation anno : target.getAnnotations()) {
+            Class<? extends Annotation> annoType = anno.annotationType();
+            if (!annoType.getPackageName().equals("java.lang.annotation")) {
+                A found = findAnnotation(annoType, annoClass);
+                if (found != null) {
+                    if (a != null) {
+                        throw new BeanDefinitionException("Duplicate @" + annoClass.getSimpleName() + " found on class " + target.getSimpleName());
+                    }
+                    a = found;
+                }
+            }
+        }
+        return a;
+    }
+}
+```
 
-| 问题                             | 回答 |
-|----------------------------------|------|
-| 可以用注解修饰注解的定义吗？       | ✅ 可以 |
-| 起什么作用？                     | 用于控制该注解的行为或为框架提供元信息 |
-| 需要注意什么？                   | 要加 `@Target(ElementType.ANNOTATION_TYPE)` |
-| 实际应用场景                     | 元注解、组合注解、注解驱动框架（如 Spring） |
+接着上面的总结，第二部分是处理`@Configuration`这种工厂类，其中包含`@Bean`注解的方法：
 
----
+```java
+void scanFactoryMethods(String factoryBeanName, Class<?> clazz, Map<String, BeanDefinition> defs) {
+    for (Method method : clazz.getDeclaredMethods()) {
+        // 是否带有@Bean标注:
+        Bean bean = method.getAnnotation(Bean.class);
+        if (bean != null) {
+            // Bean的声明类型是方法返回类型:
+            Class<?> beanClass = method.getReturnType();
+            var def = new BeanDefinition(
+                ClassUtils.getBeanName(method), beanClass,
+                factoryBeanName,
+                // 创建Bean的工厂方法:
+                method,
+                // @Order
+                getOrder(method),
+                // 是否存在@Primary标注?
+                method.isAnnotationPresent(Primary.class),
+                // init方法名称:
+                bean.initMethod().isEmpty() ? null : bean.initMethod(),
+                // destroy方法名称:
+                bean.destroyMethod().isEmpty() ? null : bean.destroyMethod(),
+                // @PostConstruct / @PreDestroy方法:
+                null, null);
+            addBeanDefinitions(defs, def);
+        }
+    }
+}
+```
 
-需要我给你举个**Spring 风格组合注解 + 反射识别 + 自动注册的完整示例**吗？这种结构在大型系统设计中非常有用！
+因此对于下面的`DateTimeConfig`工厂类，我们实际上会创建3个`BeanDefinition`对象：`DateTimeConfig`、`LocalDateTime`和`ZonedDateTime`。
+
+```java
+@Configuration
+public class DateTimeConfig {
+    @Bean
+    LocalDateTime local() { return LocalDateTime.now(); }
+
+    @Bean
+    ZonedDateTime zoned() { return ZonedDateTime.now(); }
+}
+```
+
+`DateTimeConfig`的创建是必要的，因为后续我们需要调用`local()`和`zoned()`方法来创建`LocalDateTime`和`ZonedDateTime`的实例。
+
+另外`BeanDefinition`同时存储了`initMethodName`和`initMethod`，以及`destroyMethodName`和`destroyMethod`，这是因为：
+- 在`@Component`声明的Bean中，我们可以根据`@PostConstruct`和`@PreDestroy`直接拿到`Method`本身
+- 在`@Bean`声明的Bean中，我们拿不到`Method`，只能从`@Bean`注解提取出字符串格式的方法名称
+
+因此，存储在`BeanDefinition`的方法名称与方法，其中至少有一个为`null`。
+
+----
+
+### 2. 相关工具包的知识
+
+#### 2.1 `slf4j`
+
+`slf4j`是一个Java日志框架的**抽象层**，它提供了一套统一的日志API，但日志的实际输出由底层绑定的日志实现框架决定（如Logback、Log4j等）。
+
+##### 2.1.1 配置slf4j的步骤（以Logback为例）
+
+###### 添加pom依赖：
+```xml
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+    <version>2.0.13</version>
+</dependency>
+<dependency>
+    <groupId>ch.qos.logback</groupId>
+    <artifactId>logback-classic</artifactId>
+    <version>1.4.14</version>
+</dependency>
+```
+
+###### 添加Logback配置文件：`logback.xml`（放在`resources/`）
+```xml
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>[%d{HH:mm:ss}] [%level] [%logger{36}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 设置全局日志级别 -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+
+    <!-- 为特定包设置更详细的日志 -->
+    <logger name="com.example" level="DEBUG"/>
+</configuration>
+```
+
+##### 2.1.2 使用示例
+```java
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class LogExample {
+    private static final Logger logger = LoggerFactory.getLogger(LogExample.class);
+
+    public static void main(String[] args) {
+        logger.atTrace().log("This is a TRACE message");
+        logger.atDebug().log("This is a DEBUG message");
+        logger.atInfo().log("This is an INFO message");
+        logger.atWarn().log("This is a WARN message");
+        logger.atError().log("This is an ERROR message");
+    }
+}
+```
+`logger.atDebug().log(...)` 只有在 `logger` 的级别是 `DEBUG` 或更细（`TRACE`） 时才会生效，其余同理

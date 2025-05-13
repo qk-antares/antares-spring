@@ -40,6 +40,12 @@ public class AnnotationConfigApplicationContext {
     protected final Map<String, BeanDefinition> beans;
     protected final PropertyResolver propertyResolver;
 
+    /**
+     * 扫描指定的包下的所有Class，并创建BeanDefinition
+     * 
+     * @param configClass 入口类，对应与SpringBoot项目中的xxxApplication类
+     * @param propertyResolver
+     */
     public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
         this.propertyResolver = propertyResolver;
         
@@ -130,6 +136,7 @@ public class AnnotationConfigApplicationContext {
                 }
                 return null;
             });
+            // 这里不使用logger.atDebug().log()，是为了防止lambda中重复判断日志等级降低效率
             if (logger.isDebugEnabled()) {
                 classList.forEach((className) -> {
                     logger.debug("class found by @ComponentScan: {}", className);
@@ -144,10 +151,10 @@ public class AnnotationConfigApplicationContext {
             for (Class<?> importConfigClass : importConfig.value()) {
                 String importClassName = importConfigClass.getName();
                 if (!classNameSet.contains(importClassName)) {
-                    logger.debug("class found by @Import: {}", importClassName);
+                    logger.atDebug().log("class found by @Import: {}", importClassName);
                     classNameSet.add(importClassName);
                 } else {
-                    logger.warn("ignore import: " + importClassName + " for it is already been scanned.");
+                    logger.atWarn().log("ignore import: " + importClassName + " for it is already been scanned.");
                 }
             }
         }
