@@ -10,6 +10,8 @@ import com.antares.spring.annotation.Bean;
 import com.antares.spring.annotation.Component;
 import com.antares.spring.exception.BeanDefinitionException;
 
+import jakarta.annotation.Nullable;
+
 public class ClassUtils {
     /**
      * 递归查找Annotation A
@@ -60,6 +62,26 @@ public class ClassUtils {
             }
         }
         return a;
+    }
+
+    /**
+     * 从一个Annotation数组中查找指定的Annotation
+     * 当isInstance用于Annotation时，只能是注解类型的完全匹配，因为注解不存在继承结构
+     * 
+     * @param <A>
+     * @param annos
+     * @param annoClass
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    @Nullable
+    public static <A extends Annotation> A findAnnotation(Annotation[] annos, Class<A> annoClass) {
+        for(Annotation anno : annos) {
+            if(annoClass.isInstance(anno)) {
+                return (A) anno;
+            }
+        }
+        return null;
     }
 
     /**

@@ -3,6 +3,9 @@ package com.antares.spring.context;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Objects;
+
+import com.antares.spring.exception.BeanCreationException;
 
 import jakarta.annotation.Nullable;
 
@@ -122,7 +125,6 @@ public class BeanDefinition implements Comparable<BeanDefinition> {
         this.destroyMethod = destroyMethod;
     }
 
-
     @Nullable
     public String getName() {
         return name;
@@ -136,6 +138,24 @@ public class BeanDefinition implements Comparable<BeanDefinition> {
     @Nullable
     public Object getInstance() {
         return instance;
+    }
+
+    public Object getRequiredInstance() {
+        if (this.instance == null) {
+            throw new BeanCreationException(String.format(
+                    "Instance of bean with name '%s' and type '%s' is not instantiated during current stage.",
+                    this.getName(), this.getBeanClass().getName()));
+        }
+        return this.instance;
+    }
+
+    public void setInstance(Object instance) {
+        Objects.requireNonNull(instance, "Bean instance cannot be null.");
+        if (!this.beanClass.isAssignableFrom(instance.getClass())) {
+            throw new BeanCreationException(String.format("Instance '%s' of Bean '%s' is not the expected type: %s",
+                    instance, instance.getClass().getName(), this.beanClass.getName()));
+        }
+        this.instance = instance;
     }
 
     @Nullable

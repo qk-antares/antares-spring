@@ -1,5 +1,6 @@
 package com.antares.spring.context;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -14,9 +15,13 @@ import com.antares.scan.ScanApplication;
 import com.antares.scan.custom.annotation.CustomAnnotationBean;
 import com.antares.scan.nested.OuterBean;
 import com.antares.scan.nested.OuterBean.NestedBean;
+import com.antares.scan.primary.DogBean;
 import com.antares.scan.primary.PersonBean;
 import com.antares.scan.primary.StudentBean;
 import com.antares.scan.primary.TeacherBean;
+import com.antares.scan.sub1.Sub1Bean;
+import com.antares.scan.sub1.sub2.Sub2Bean;
+import com.antares.scan.sub1.sub2.sub3.Sub3Bean;
 import com.antares.spring.io.PropertyResolver;
 
 public class AnnotationConfigApplicationContextTest {
@@ -49,6 +54,50 @@ public class AnnotationConfigApplicationContextTest {
 
     }
 
+    /*
+     * ===========分割线================
+     */
+    @Test
+    public void testCustomAnnotation() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        assertNotNull(ctx.getBean(CustomAnnotationBean.class));
+        assertNotNull(ctx.getBean("customAnnotation"));
+    }
+
+    @Test
+    public void testImport() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        assertNotNull(ctx.getBean(LocalDateConfiguration.class));
+        assertNotNull(ctx.getBean("startLocalDate"));
+        assertNotNull(ctx.getBean("startLocalDateTime"));
+        assertNotNull(ctx.getBean(ZonedDateConfiguration.class));
+        assertNotNull(ctx.getBean("startZonedDateTime"));
+    }
+
+    @Test
+    public void testNested() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        ctx.getBean(OuterBean.class);
+        ctx.getBean(NestedBean.class);
+    }
+
+    @Test
+    public void testPrimary() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        var person = ctx.getBean(PersonBean.class);
+        assertEquals(TeacherBean.class, person.getClass());
+        var dog = ctx.getBean(DogBean.class);
+        assertEquals("Husky", dog.type);
+    }
+
+    @Test
+    public void testSub() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        ctx.getBean(Sub1Bean.class);
+        ctx.getBean(Sub2Bean.class);
+        ctx.getBean(Sub3Bean.class);
+    }
+
     PropertyResolver createPropertyResolver() {
         var ps = new Properties();
         ps.put("app.title", "Scan App");
@@ -72,4 +121,5 @@ public class AnnotationConfigApplicationContextTest {
         var pr = new PropertyResolver(ps);
         return pr;
     }
+
 }
