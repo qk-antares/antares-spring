@@ -101,16 +101,16 @@ Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数
 
 ----
 
-#### [1.2 ResourceResolver](https://github.com/qk-antares/antares-spring/blob/main/doc/IoC/1.2_ResourceResolver.md)
+#### [1.2 ResourceResolver](https://github.com/qk-antares/antares-spring/blob/master/doc/IoC/1.2_ResourceResolver.md)
 
 -----
 
-#### [1.3 PropertyResolver](https://github.com/qk-antares/antares-spring/blob/main/doc/IoC/1.3_PropertyResolver.md)
+#### [1.3 PropertyResolver](https://github.com/qk-antares/antares-spring/blob/master/doc/IoC/1.3_PropertyResolver.md)
 
 ---
 
-#### [1.4 BeanDefinition](https://github.com/qk-antares/antares-spring/blob/main/doc/IoC/1.4_BeanDefinition.md)
+#### [1.4 BeanDefinition](https://github.com/qk-antares/antares-spring/blob/master/doc/IoC/1.4_BeanDefinition.md)
 
 ----
 
-### [2. 相关工具包的知识](https://github.com/qk-antares/antares-spring/blob/main/doc/utils/2_Utils.md)
+### [2. 相关工具包的知识](https://github.com/qk-antares/antares-spring/blob/master/doc/utils/2_Utils.md)
