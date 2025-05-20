@@ -156,4 +156,21 @@ public class ClassUtils {
         }   
         throw new BeanDefinitionException(String.format("Multiple method with @%s found on class: %s", annoClass.getSimpleName(), clazz.getName()));
     }
+
+    /**
+     * 查找指定名称的无参方法，不在父类中查找
+     * 
+     * TODO 为什么不需要调用父类的init/destroy方法？
+     * 
+     * @param clazz
+     * @param methodName
+     * @return
+     */
+    public static Method getNamedMethod(Class<?> clazz, String methodName) {
+        try {
+            return clazz.getDeclaredMethod(methodName);
+        } catch (ReflectiveOperationException e) {
+            throw new BeanDefinitionException(String.format("Method '%s' not found in class: %s", methodName, clazz.getName()));
+        }
+    }
 }

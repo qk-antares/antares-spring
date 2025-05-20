@@ -43,16 +43,29 @@ public class PropertyResolver {
             this.properties.put(name, props.getProperty(name));
         }
 
-        // String类型:
+        // register converters:
         converters.put(String.class, s -> s);
-        // boolean类型:
         converters.put(boolean.class, s -> Boolean.parseBoolean(s));
         converters.put(Boolean.class, s -> Boolean.valueOf(s));
-        // int类型:
+
+        converters.put(byte.class, s -> Byte.parseByte(s));
+        converters.put(Byte.class, s -> Byte.valueOf(s));
+
+        converters.put(short.class, s -> Short.parseShort(s));
+        converters.put(Short.class, s -> Short.valueOf(s));
+
         converters.put(int.class, s -> Integer.parseInt(s));
         converters.put(Integer.class, s -> Integer.valueOf(s));
-        // 其他基本类型...
-        // Date/Time类型:
+
+        converters.put(long.class, s -> Long.parseLong(s));
+        converters.put(Long.class, s -> Long.valueOf(s));
+
+        converters.put(float.class, s -> Float.parseFloat(s));
+        converters.put(Float.class, s -> Float.valueOf(s));
+
+        converters.put(double.class, s -> Double.parseDouble(s));
+        converters.put(Double.class, s -> Double.valueOf(s));
+
         converters.put(LocalDate.class, s -> LocalDate.parse(s));
         converters.put(LocalTime.class, s -> LocalTime.parse(s));
         converters.put(LocalDateTime.class, s -> LocalDateTime.parse(s));

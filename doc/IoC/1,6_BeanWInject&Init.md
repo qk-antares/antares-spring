@@ -1,0 +1,116 @@
+#### 1.6 Bean 的弱依赖注入与初始化
+
+在创建 Bean 实例的过程中，我们已经完成了强依赖的注入（事实上我们必须这么做）。下一步是根据 Setter 方法和字段完成弱依赖注入，接着调用`@PostConstruct`标注的`init`方法完成 Bean 的初始化
+
+```java
+public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
+    ...
+
+    // 通过Field和Setter方法注入依赖:
+    this.beans.values().forEach(def -> {
+        injectBean(def);
+    });
+
+    // 调用init方法:
+    this.beans.values().forEach(def -> {
+        initBean(def);
+    });
+}
+```
+
+##### 1.6.1 Bean 的弱依赖注入
+
+```java
+// 对单个Bean进行Field注入和Setter注入
+void injectBean(BeanDefinition def) {
+    try {
+        injectProperties(def, def.getBeanClass(), def.getInstance());
+    } catch (ReflectiveOperationException e) {
+        throw new BeanCreationException(e);
+    }
+}
+```
+需要注意的是，`injectProperties`中需要进行递归地调用，以完成其父类的Field和Setter注入（即使父类没有使用`@Component`注解修饰），因为有些`@Autowired`注解可能标注在父类中，并希望所有子类都可使用：
+```java
+// Field注入和Setter注入，并递归地对通过父类继承的Field和Method进行注入
+void injectProperties(BeanDefinition def, Class<?> clazz, Object instance) {
+    // 在当前类中查找Field和Method并注入
+    for (Field f : clazz.getDeclaredFields()) {
+        tryInjectProperty(def, clazz, instance, f);
+    }
+    for (Method m : clazz.getDeclaredMethods()) {
+        tryInjectProperty(def, clazz, instance, m);
+    }
+    // 在父类中查找Field和Method尝试注入
+    Class<?> superClazz = clazz.getSuperclass();
+    if (superClazz != null) {
+        injectProperties(def, superClazz, instance);
+    }
+}
+```
+
+`tryInjectProperty`方法会向`instance`中注入某个特定的Field（或执行其Setter方法以达到注入效果）。它会先判断`@Autowired`/`@Value`是否存在，如果不存在则直接返回。接着拿到`Field`/`Method`，并最终通过`field.set(instance, propValue)`或`method.invoke(instance, propValue)`来完成注入：
+
+```java
+void tryInjectProperty(BeanDefinition def, Class<?> clazz, Object instance, AccessibleObject acc) {
+    // 获取Field/Method上的@Value和@Autowired
+    Value value = acc.getAnnotation(Value.class);
+    Autowired autowired = acc.getAnnotation(Autowired.class);
+    if (value == null && autowired == null) {
+        return;
+    }
+
+    // 获取@Value/@Autowired所修饰的Field/Method
+    Field field = null;
+    Method method = null;
+    // 这里是JDK 16的语法糖
+    if (acc instanceof Field f) {
+        checkFieldOrMethod(f);
+        f.setAccessible(true);
+        field = f;
+    }
+    if (acc instanceof Method m) {
+        checkFieldOrMethod(m);
+        // setter只能是1个参数
+        if (m.getParameters().length != 1) {
+            throw new BeanDefinitionException();
+        }
+        m.setAccessible(true);
+        method = m;
+    }
+
+    String accessibleName = field != null ? field.getName() : method.getName();
+    Class<?> accessileType = field != null ? field.getType() : method.getParameterTypes()[0];
+
+    // 不能同时存在@Value和@Autowired
+    if (value != null && autowired != null) {
+        throw new BeanCreationException();
+    }
+
+    // @Value注入
+    if (value != null) {
+        Object propValue = this.propertyResolver.getRequiredProperty(value.value(), accessileType);
+        if (field != null) {
+            field.set(instance, propValue);
+        }
+        if (method != null) {
+            method.invoke(instance, propValue);
+        }
+    }
+
+    // @Autowired注入
+    if (autowired != null) {
+        //...
+    }
+}
+```
+
+- `void checkFieldOrMethod(Member m)`函数会检查`Field`/`Method`的访问修饰符（即不能是`static`、`final`），如果不符合则抛出异常。
+- `obj instanceof Class<?> var`是JDK 16的语法糖，如果`obj`是`Class<?>`类型的对象，则将其赋值给`var`变量
+- 关于`AccessibleObject` `Member` `Field`和`Method`：
+  - `Field->(Accessible, Member)`，`Method->Executable->(Accessible, Member)`
+  - `AccessibleObject`是`Field`和`Method`的抽象父类，提供了设置访问权限的方法
+  - `Member`是`Field`和`Method`的父接口，提供了获取修饰符的方法
+
+##### 1.6.2 Bean 的初始化
+
