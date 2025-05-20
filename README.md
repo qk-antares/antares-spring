@@ -113,6 +113,8 @@ Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数
 
 #### [1.5 创建Bean实例与强依赖注入](https://github.com/qk-antares/antares-spring/blob/master/doc/IoC/1.5_BeanCreate&SInject.md)
 
+#### [1.6 Bean 的弱依赖注入与初始化](https://github.com/qk-antares/antares-spring/blob/master/doc/IoC/1.6_BeanWInject&Init.md)
+
 ----
 
 ### [2. 相关工具包的知识](https://github.com/qk-antares/antares-spring/blob/master/doc/utils/2_Utils.md)
