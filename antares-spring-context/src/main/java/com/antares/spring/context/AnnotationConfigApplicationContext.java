@@ -46,7 +46,7 @@ import jakarta.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
-public class AnnotationConfigApplicationContext {
+public class AnnotationConfigApplicationContext implements ConfigurableApplicationContext {
 
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -63,6 +63,8 @@ public class AnnotationConfigApplicationContext {
      * @param propertyResolver
      */
     public AnnotationConfigApplicationContext(Class<?> configClass, PropertyResolver propertyResolver) {
+        ApplicationContextUtils.setApplicationContext(this);
+
         this.propertyResolver = propertyResolver;
 
         // 扫描获取所有Bean的Class类型
@@ -125,6 +127,7 @@ public class AnnotationConfigApplicationContext {
      * @return
      */
     @Nullable
+    @Override
     public BeanDefinition findBeanDefinition(String name) {
         return this.beans.get(name);
     }
@@ -135,7 +138,8 @@ public class AnnotationConfigApplicationContext {
      * @param type
      * @return
      */
-    List<BeanDefinition> findBeanDefinitions(Class<?> type) {
+    @Override
+    public List<BeanDefinition> findBeanDefinitions(Class<?> type) {
         return this.beans.values().stream()
                 // 过滤类型
                 .filter(bean -> type.isAssignableFrom(bean.getBeanClass()))
@@ -149,6 +153,8 @@ public class AnnotationConfigApplicationContext {
      * @param type
      * @return
      */
+    @Nullable
+    @Override
     public BeanDefinition findBeanDefinition(Class<?> type) {
         List<BeanDefinition> defs = findBeanDefinitions(type);
         if (defs.isEmpty()) {
@@ -178,6 +184,8 @@ public class AnnotationConfigApplicationContext {
      * @param requiredType
      * @return
      */
+    @Nullable
+    @Override
     public BeanDefinition findBeanDefinition(String name, Class<?> requiredType) {
         BeanDefinition def = findBeanDefinition(name);
         if (def == null) {
@@ -191,6 +199,40 @@ public class AnnotationConfigApplicationContext {
         return def;
     }
 
+    @Override
+    public boolean containsBean(String name) {
+        return this.beans.containsKey(name);
+    }
+
+    // findBean可以返回null，而getBean不可以
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    protected <T> T findBean(String name, Class<T> requiredType) {
+        BeanDefinition def = findBeanDefinition(name, requiredType);
+        if (def == null) {
+            return null;
+        }
+        return (T) def.getRequiredInstance();
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    protected <T> T findBean(Class<T> requiredType) {
+        BeanDefinition def = findBeanDefinition(requiredType);
+        if (def == null) {
+            return null;
+        }
+        return (T) def.getRequiredInstance();
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    protected <T> List<T> findBeans(Class<T> requiredType) {
+        return findBeanDefinitions(requiredType).stream().map(def -> (T) def.getRequiredInstance())
+                .collect(Collectors.toList());
+    }
+
     /**
      * 根据name查找Bean实例，不存在时抛出异常NoSuchBeanDefinitionException
      * 
@@ -199,6 +241,7 @@ public class AnnotationConfigApplicationContext {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Override
     public <T> T getBean(String name) {
         BeanDefinition def = this.beans.get(name);
         if (def == null) {
@@ -216,6 +259,7 @@ public class AnnotationConfigApplicationContext {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Override
     public <T> T getBean(Class<T> requiredType) {
         BeanDefinition def = findBeanDefinition(requiredType);
         if (def == null) {
@@ -223,6 +267,29 @@ public class AnnotationConfigApplicationContext {
                     String.format("No bean defined with type '%s'.", requiredType));
         }
         return (T) def.getRequiredInstance();
+    }
+
+    public <T> T getBean(String name, Class<T> requiredType) {
+        T t = findBean(name, requiredType);
+        if (t == null) {
+            throw new NoSuchBeanDefinitionException(
+                    String.format("No bean defined with name '%s' and type '%s'.", name, requiredType));
+        }
+        return t;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> List<T> getBeans(Class<T> requiredType) {
+        List<BeanDefinition> defs = findBeanDefinitions(requiredType);
+        if (defs.isEmpty()) {
+            return List.of();
+        }
+        List<T> list = new ArrayList<>(defs.size());
+        for (var def : defs) {
+            list.add((T) def.getRequiredInstance());
+        }
+        return list;
     }
 
     /**
@@ -797,5 +864,17 @@ public class AnnotationConfigApplicationContext {
             }
         }
         return beanInstance;
+    }
+
+    @Override
+    public void close() {
+        logger.atInfo().log("Closing {}...", this.getClass().getName());
+        this.beans.values().forEach(def -> {
+            final Object beanInstance = getProxiedInstance(def);
+            callMethod(beanInstance, def.getDestroyMethod(), def.getDestroyMethodName());
+        });
+        this.beans.clear();
+        logger.atInfo().log("{} closed.", this.getClass().getName());
+        ApplicationContextUtils.setApplicationContext(null);
     }
 }

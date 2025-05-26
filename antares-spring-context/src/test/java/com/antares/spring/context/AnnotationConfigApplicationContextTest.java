@@ -42,31 +42,31 @@ import com.antares.spring.io.PropertyResolver;
 public class AnnotationConfigApplicationContextTest {
     @Test
     public void testAnnotationConfigApplicationContext() {
-        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
-        // @CustomAnnotation:
-        assertNotNull(ctx.findBeanDefinition(CustomAnnotationBean.class));
-        assertNotNull(ctx.findBeanDefinition("customAnnotation"));
+        try (var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver())) {
+            // @CustomAnnotation:
+            assertNotNull(ctx.findBeanDefinition(CustomAnnotationBean.class));
+            assertNotNull(ctx.findBeanDefinition("customAnnotation"));
 
-        // @Import():
-        assertNotNull(ctx.findBeanDefinition(LocalDateConfiguration.class));
-        assertNotNull(ctx.findBeanDefinition("startLocalDate"));
-        assertNotNull(ctx.findBeanDefinition("startLocalDateTime"));
-        assertNotNull(ctx.findBeanDefinition(ZonedDateConfiguration.class));
-        assertNotNull(ctx.findBeanDefinition("startZonedDateTime"));
-        // nested:
-        assertNotNull(ctx.findBeanDefinition(OuterBean.class));
-        assertNotNull(ctx.findBeanDefinition(NestedBean.class));
+            // @Import():
+            assertNotNull(ctx.findBeanDefinition(LocalDateConfiguration.class));
+            assertNotNull(ctx.findBeanDefinition("startLocalDate"));
+            assertNotNull(ctx.findBeanDefinition("startLocalDateTime"));
+            assertNotNull(ctx.findBeanDefinition(ZonedDateConfiguration.class));
+            assertNotNull(ctx.findBeanDefinition("startZonedDateTime"));
+            // nested:
+            assertNotNull(ctx.findBeanDefinition(OuterBean.class));
+            assertNotNull(ctx.findBeanDefinition(NestedBean.class));
 
-        BeanDefinition studentDef = ctx.findBeanDefinition(StudentBean.class);
-        BeanDefinition teacherDef = ctx.findBeanDefinition(TeacherBean.class);
-        // 2 PersonBean:
-        List<BeanDefinition> defs = ctx.findBeanDefinitions(PersonBean.class);
-        assertSame(studentDef, defs.get(0));
-        assertSame(teacherDef, defs.get(1));
-        // 1 @Primary PersonBean:
-        BeanDefinition personPrimaryDef = ctx.findBeanDefinition(PersonBean.class);
-        assertSame(teacherDef, personPrimaryDef);
-
+            BeanDefinition studentDef = ctx.findBeanDefinition(StudentBean.class);
+            BeanDefinition teacherDef = ctx.findBeanDefinition(TeacherBean.class);
+            // 2 PersonBean:
+            List<BeanDefinition> defs = ctx.findBeanDefinitions(PersonBean.class);
+            assertSame(studentDef, defs.get(0));
+            assertSame(teacherDef, defs.get(1));
+            // 1 @Primary PersonBean:
+            BeanDefinition personPrimaryDef = ctx.findBeanDefinition(PersonBean.class);
+            assertSame(teacherDef, personPrimaryDef);
+        }
     }
 
     /*
