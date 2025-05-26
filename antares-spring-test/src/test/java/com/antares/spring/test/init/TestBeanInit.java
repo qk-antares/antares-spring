@@ -1,4 +1,4 @@
-package com.antares.spring.test;
+package com.antares.spring.test.init;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

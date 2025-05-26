@@ -167,7 +167,6 @@ public class PropertyResolver {
 
     public String getRequiredProperty(String key) {
         String value = getProperty(key);
-        // TODO 我觉得这里很让人疑惑，要么就不能返回null，要么就与@Nullable一致
         return Objects.requireNonNull(value, "Property '" + key + "' not found.");
     }
 

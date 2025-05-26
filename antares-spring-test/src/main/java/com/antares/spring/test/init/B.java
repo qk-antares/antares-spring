@@ -1,4 +1,4 @@
-package com.antares.spring.test;
+package com.antares.spring.test.init;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;

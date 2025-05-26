@@ -1,11 +1,11 @@
-package com.antares.spring.test;
+package com.antares.spring.test.init;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class App {
+public class InitApp {
     public static void main(String[] args) {
-        SpringApplication.run(App.class, args);
+        SpringApplication.run(InitApp.class, args);
     }
 }

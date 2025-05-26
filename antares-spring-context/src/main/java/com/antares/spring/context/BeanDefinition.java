@@ -72,8 +72,8 @@ public class BeanDefinition implements Comparable<BeanDefinition> {
 
     /**
      * 这个构造方法用于@Bean注解的Bean，这类Bean没有constructor
-     * initMethod和destroyMethod为null(TODO 同上)
-     * 
+     * initMethod和destroyMethod为null
+     * TODO 同上
      * 
      * @param name
      * @param beanClass

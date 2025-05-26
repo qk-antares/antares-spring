@@ -2,6 +2,7 @@ package com.antares.spring.context;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,6 +30,10 @@ import com.antares.scan.primary.DogBean;
 import com.antares.scan.primary.PersonBean;
 import com.antares.scan.primary.StudentBean;
 import com.antares.scan.primary.TeacherBean;
+import com.antares.scan.proxy.InjectProxyOnConstructorBean;
+import com.antares.scan.proxy.InjectProxyOnPropertyBean;
+import com.antares.scan.proxy.OriginBean;
+import com.antares.scan.proxy.SecondProxyBean;
 import com.antares.scan.sub1.Sub1Bean;
 import com.antares.scan.sub1.sub2.Sub2Bean;
 import com.antares.scan.sub1.sub2.sub3.Sub3Bean;
@@ -160,6 +165,28 @@ public class AnnotationConfigApplicationContextTest {
         assertEquals(ZonedDateTime.parse("2023-03-29T20:45:01+08:00[Asia/Shanghai]"), bean.injectedZonedDateTime);
         assertEquals(Duration.parse("P2DT3H4M"), bean.injectedDuration);
         assertEquals(ZoneId.of("Asia/Shanghai"), bean.injectedZoneId);
+    }
+
+    /*
+     * ===========分割线================
+     */
+    @Test
+    public void testProxy() {
+        var ctx = new AnnotationConfigApplicationContext(ScanApplication.class, createPropertyResolver());
+        // test proxy:
+        OriginBean proxy = ctx.getBean(OriginBean.class);
+        assertSame(SecondProxyBean.class, proxy.getClass());
+        assertEquals("Scan App", proxy.getName());
+        assertEquals("v1.0", proxy.getVersion());
+        // make sure proxy.field is not injected:
+        assertNull(proxy.name);
+        assertNull(proxy.version);
+
+        // other beans are injected proxy instance:
+        var inject1 = ctx.getBean(InjectProxyOnPropertyBean.class);
+        var inject2 = ctx.getBean(InjectProxyOnConstructorBean.class);
+        assertSame(proxy, inject1.injected);
+        assertSame(proxy, inject2.injected);
     }
 
     PropertyResolver createPropertyResolver() {
