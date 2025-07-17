@@ -10,6 +10,7 @@
     <modules>
         <module>antares-spring-context</module>
         <module>antares-spring-test</module>
+        <module>antares-spring-aop</module>
     </modules>
 
     <properties>

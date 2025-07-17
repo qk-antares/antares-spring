@@ -1,10 +1,10 @@
-### 2. 相关工具包的知识
+### 3. 相关工具包的知识
 
-#### 2.1 `slf4j`
+#### 3.1 `slf4j`
 
 `slf4j`是一个Java日志框架的**抽象层**，它提供了一套统一的日志API，但日志的实际输出由底层绑定的日志实现框架决定（如Logback、Log4j等）。
 
-##### 2.1.1 配置slf4j的步骤（以Logback为例）
+##### 3.1.1 配置slf4j的步骤（以Logback为例）
 
 ###### 添加pom依赖：
 ```xml
@@ -39,7 +39,7 @@
 </configuration>
 ```
 
-##### 2.1.2 使用示例
+##### 3.1.2 使用示例
 ```java
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
