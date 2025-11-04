@@ -133,7 +133,13 @@ Bean的作用域包括`Singleton`和`Prototype`等，而在实际使用大多数
 
 #### [2.1 AOP的前置知识](https://github.com/qk-antares/antares-spring/blob/master/doc/AOP/2.1_AOPPreliminaries.md)
 
+---
+
 #### [2.2 实现ProxyResolver](https://github.com/qk-antares/antares-spring/blob/master/doc/AOP/2.2_ProxyResolver.md)
+
+---
+
+#### [2.3 实现Around通知](https://github.com/qk-antares/antares-spring/blob/master/doc/AOP/2.3_Around.md)
 
 ---
 ### [3. 相关工具包的知识](https://github.com/qk-antares/antares-spring/blob/master/doc/utils/3_Utils.md)
