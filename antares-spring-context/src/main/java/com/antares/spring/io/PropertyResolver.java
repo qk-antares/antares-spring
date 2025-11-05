@@ -13,6 +13,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.antares.spring.utils.YamlUtils;
+
 import jakarta.annotation.Nullable;
 
 /*
@@ -37,6 +39,14 @@ public class PropertyResolver {
     public PropertyResolver(Properties props) {
         // 存入环境变量
         this.properties.putAll(System.getenv());
+        
+        // 载入YAML配置文件
+        Map<String, Object> configs = YamlUtils.loadYamlAsPlainMap("/application.yml");
+        for (String key : configs.keySet()) {
+            Object value = configs.get(key);
+            this.properties.put(key, String.valueOf(value));
+        }
+
         // 存入Properties
         Set<String> names = props.stringPropertyNames();
         for (String name : names) {

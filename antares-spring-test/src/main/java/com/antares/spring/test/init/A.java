@@ -1,6 +1,7 @@
 package com.antares.spring.test.init;
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 public class A {
     @PostConstruct
