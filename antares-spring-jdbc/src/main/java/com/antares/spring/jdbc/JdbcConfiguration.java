@@ -2,9 +2,13 @@ package com.antares.spring.jdbc;
 
 import javax.sql.DataSource;
 
+import com.antares.spring.annotation.Autowired;
 import com.antares.spring.annotation.Bean;
 import com.antares.spring.annotation.Configuration;
 import com.antares.spring.annotation.Value;
+import com.antares.spring.jdbc.tx.DataSourceTransactionManager;
+import com.antares.spring.jdbc.tx.PlatformTransactionManager;
+import com.antares.spring.jdbc.tx.TransactionalBeanPostProcessor;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -34,5 +38,20 @@ public class JdbcConfiguration {
         config.setMinimumIdle(minimumPoolSize);
         config.setConnectionTimeout(connTimeout);
         return new HikariDataSource(config);
+    }
+
+    @Bean
+    JdbcTemplate jdbcTemplate(@Autowired DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+
+    @Bean
+    TransactionalBeanPostProcessor transactionalBeanPostProcessor() {
+        return new TransactionalBeanPostProcessor();
+    }
+
+    @Bean
+    PlatformTransactionManager platformTransactionManager(@Autowired DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
     }
 }
