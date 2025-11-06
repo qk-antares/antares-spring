@@ -1,8 +1,0 @@
-server:
-  port: 8031
-spring:
-  application:
-    name: spring-test
-antares:
-  docker:
-    enabled: true

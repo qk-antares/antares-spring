@@ -76,8 +76,8 @@ public class ClassUtils {
     @SuppressWarnings("unchecked")
     @Nullable
     public static <A extends Annotation> A findAnnotation(Annotation[] annos, Class<A> annoClass) {
-        for(Annotation anno : annos) {
-            if(annoClass.isInstance(anno)) {
+        for (Annotation anno : annos) {
+            if (annoClass.isInstance(anno)) {
                 return (A) anno;
             }
         }
@@ -122,6 +122,7 @@ public class ClassUtils {
 
     /**
      * 获取工厂方法的BeanName，默认依然是@Bean注解的value值，其次是方法名
+     * 
      * @param method
      * @return
      */
@@ -141,20 +142,24 @@ public class ClassUtils {
      * @return
      */
     public static Method findAnnotationMethod(Class<?> clazz, Class<? extends Annotation> annoClass) {
-        List<Method> ms = Arrays.stream(clazz.getDeclaredMethods()).filter(m -> m.isAnnotationPresent(annoClass)).map(m -> {
-            if (m.getParameterCount() != 0) {
-                throw new BeanDefinitionException(String.format("Method '%s' with @%s must not have argument: %s", m.getName(), annoClass.getSimpleName(), clazz.getName()));
-            }
-            return m;
-        }).collect(Collectors.toList());
+        List<Method> ms = Arrays.stream(clazz.getDeclaredMethods()).filter(m -> m.isAnnotationPresent(annoClass))
+                .map(m -> {
+                    if (m.getParameterCount() != 0) {
+                        throw new BeanDefinitionException(
+                                String.format("Method '%s' with @%s must not have argument: %s", m.getName(),
+                                        annoClass.getSimpleName(), clazz.getName()));
+                    }
+                    return m;
+                }).collect(Collectors.toList());
 
-        if(ms.isEmpty()) {
+        if (ms.isEmpty()) {
             return null;
         }
-        if(ms.size() == 1) {
+        if (ms.size() == 1) {
             return ms.get(0);
-        }   
-        throw new BeanDefinitionException(String.format("Multiple method with @%s found on class: %s", annoClass.getSimpleName(), clazz.getName()));
+        }
+        throw new BeanDefinitionException(String.format("Multiple method with @%s found on class: %s",
+                annoClass.getSimpleName(), clazz.getName()));
     }
 
     /**
@@ -170,7 +175,22 @@ public class ClassUtils {
         try {
             return clazz.getDeclaredMethod(methodName);
         } catch (ReflectiveOperationException e) {
-            throw new BeanDefinitionException(String.format("Method '%s' not found in class: %s", methodName, clazz.getName()));
+            throw new BeanDefinitionException(
+                    String.format("Method '%s' not found in class: %s", methodName, clazz.getName()));
         }
+    }
+
+    /*
+     * 从一个Annotation数组中查找指定的Annotation
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static <A extends Annotation> A getAnnotation(Annotation[] annos, Class<A> annoClass) {
+        for (Annotation anno : annos) {
+            if (annoClass.isInstance(anno)) {
+                return (A) anno;
+            }
+        }
+        return null;
     }
 }
