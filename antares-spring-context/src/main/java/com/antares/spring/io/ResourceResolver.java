@@ -1,6 +1,5 @@
 package com.antares.spring.io;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -62,8 +61,8 @@ public class ResourceResolver {
         while (en.hasMoreElements()) {
             URL url = en.nextElement();
             URI uri = url.toURI();
-            //TODO 删除前导的文件分隔符是否是必要的？因为uriToString后前导的应该是file:或jar:
-            String uriStr = removeLeadingSlash(uriToString(uri));
+            // 删除后导文件分隔符，防止出现异常
+            String uriStr = removeTrailingSlash(uriToString(uri));
             //去掉包名
             String uriBaseStr = uriStr.substring(0, uriStr.length() - basePackagePath.length());
             if (uriBaseStr.startsWith("file:")) {
@@ -126,10 +125,10 @@ public class ResourceResolver {
     }
 
     /*
-     * 删除前导的文件分隔符
+     * 删除前导的文件分隔符（不能使用 File.separator，必须逐个判断）
      */
     String removeLeadingSlash(String s) {
-        if (s.startsWith(File.separator)) {
+        if (s.startsWith("/") || s.startsWith("\\")) {
             s = s.substring(1);
         }
         return s;
@@ -139,7 +138,7 @@ public class ResourceResolver {
      * 作用同上
      */
     String removeTrailingSlash(String s) {
-        if (s.endsWith(File.separator)) {
+        if (s.endsWith("/") || s.endsWith("\\")) {
             s = s.substring(0, s.length() - 1);
         }
         return s;

@@ -1,6 +1,5 @@
 package com.antares.spring.context;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
@@ -316,7 +315,7 @@ public class AnnotationConfigApplicationContext implements ConfigurableApplicati
             List<String> classList = rr.scan(res -> {
                 String name = res.name();
                 if (name.endsWith(".class")) {
-                    return name.substring(0, name.length() - 6).replace(File.separator, ".");
+                    return name.substring(0, name.length() - 6).replace("/", ".").replace("\\", ".");
                 }
                 return null;
             });

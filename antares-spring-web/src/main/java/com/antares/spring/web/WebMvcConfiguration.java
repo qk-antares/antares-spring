@@ -4,10 +4,12 @@ import java.util.Objects;
 
 import com.antares.spring.annotation.Autowired;
 import com.antares.spring.annotation.Bean;
+import com.antares.spring.annotation.Configuration;
 import com.antares.spring.annotation.Value;
 
 import jakarta.servlet.ServletContext;
 
+@Configuration
 public class WebMvcConfiguration {
     private static ServletContext servletContext = null;
 

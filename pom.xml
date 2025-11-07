@@ -13,6 +13,7 @@
         <module>antares-spring-aop</module>
         <module>antares-spring-jdbc</module>
         <module>antares-spring-web</module>
+        <module>antares-spring-hello-webapp</module>
     </modules>
 
     <properties>

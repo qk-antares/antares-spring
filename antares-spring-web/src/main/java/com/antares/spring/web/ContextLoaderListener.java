@@ -26,7 +26,7 @@ public class ContextLoaderListener implements ServletContextListener {
         WebMvcConfiguration.setServletContext(servletContext);
 
         PropertyResolver propertyResolver = WebUtils.createPropertyResolver();
-        String encoding = propertyResolver.getProperty("${summer.web.character-encoding:UTF-8}");
+        String encoding = propertyResolver.getProperty("${spring.web.character-encoding:UTF-8}");
         servletContext.setRequestCharacterEncoding(encoding);
         servletContext.setResponseCharacterEncoding(encoding);
 

@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,11 +16,16 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.antares.spring.annotation.Controller;
+import com.antares.spring.annotation.GetMapping;
 import com.antares.spring.annotation.PathVariable;
+import com.antares.spring.annotation.PostMapping;
 import com.antares.spring.annotation.RequestBody;
 import com.antares.spring.annotation.RequestParam;
 import com.antares.spring.annotation.ResponseBody;
+import com.antares.spring.annotation.RestController;
 import com.antares.spring.context.ApplicationContext;
+import com.antares.spring.context.ConfigurableApplicationContext;
 import com.antares.spring.exception.ErrorResponseException;
 import com.antares.spring.exception.NestedRuntimeException;
 import com.antares.spring.exception.ServerErrorException;
@@ -242,6 +248,59 @@ public class DispatcherServlet extends HttpServlet {
     }
 
     @Override
+    public void init() throws ServletException {
+        logger.info("init {}.", getClass().getName());
+        // scan @Controller and @RestController:
+        for (var def : ((ConfigurableApplicationContext) this.applicationContext).findBeanDefinitions(Object.class)) {
+            Class<?> beanClass = def.getBeanClass();
+            Object bean = def.getRequiredInstance();
+            Controller controller = beanClass.getAnnotation(Controller.class);
+            RestController restController = beanClass.getAnnotation(RestController.class);
+            if (controller != null && restController != null) {
+                throw new ServletException("Found @Controller and @RestController on class: " + beanClass.getName());
+            }
+            if (controller != null) {
+                addController(false, def.getName(), bean);
+            }
+            if (restController != null) {
+                addController(true, def.getName(), bean);
+            }
+        }
+    }
+
+    void addController(boolean isRest, String name, Object instance) throws ServletException {
+        logger.info("add {} controller '{}': {}", isRest ? "REST" : "MVC", name, instance.getClass().getName());
+        addMethods(isRest, name, instance, instance.getClass());
+    }
+
+    void addMethods(boolean isRest, String name, Object instance, Class<?> type) throws ServletException {
+        for (Method m : type.getDeclaredMethods()) {
+            GetMapping get = m.getAnnotation(GetMapping.class);
+            if (get != null) {
+                checkMethod(m);
+                this.getDispatchers.add(new Dispatcher("GET", isRest, instance, m, get.value()));
+            }
+            PostMapping post = m.getAnnotation(PostMapping.class);
+            if (post != null) {
+                checkMethod(m);
+                this.postDispatchers.add(new Dispatcher("POST", isRest, instance, m, post.value()));
+            }
+        }
+        Class<?> superClass = type.getSuperclass();
+        if (superClass != null) {
+            addMethods(isRest, name, instance, superClass);
+        }
+    }
+
+    void checkMethod(Method m) throws ServletException {
+        int mod = m.getModifiers();
+        if (Modifier.isStatic(mod)) {
+            throw new ServletException("Cannot do URL mapping to static method: " + m);
+        }
+        m.setAccessible(true);
+    }
+
+    @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
         String url = req.getRequestURI();
         // 静态资源处理
@@ -377,4 +436,8 @@ public class DispatcherServlet extends HttpServlet {
         }
     }
 
+    @Override
+    public void destroy() {
+        this.applicationContext.close();
+    }
 }
