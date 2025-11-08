@@ -14,6 +14,8 @@
         <module>antares-spring-jdbc</module>
         <module>antares-spring-web</module>
         <module>antares-spring-hello-webapp</module>
+        <module>antares-spring-boot</module>
+        <module>antares-spring-hello-boot</module>
     </modules>
 
     <properties>

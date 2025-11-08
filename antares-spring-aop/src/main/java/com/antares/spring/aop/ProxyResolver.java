@@ -29,6 +29,7 @@ public class ProxyResolver {
         return INSTANCE;
     }
 
+    @SuppressWarnings("unchecked")
     public <T> T createProxy(T bean, InvocationHandler handler) {
         // 目标Bean的Class类型
         Class<?> targetClass = bean.getClass();
